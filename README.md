@@ -1,5 +1,5 @@
 # IAMFixer
-
+IAMFixer = Intelligent Application Monitoring & Fixer
 > **Find the failure. Understand the cause. Fix it.**
 
 IAMFixer is an AI-powered incident response platform designed to help developers investigate software failures by correlating logs, metrics, deployment events, and other telemetry.
