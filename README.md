@@ -215,6 +215,7 @@ Open another terminal:
 cd frontend
 Install dependencies:
 npm install
+<<<<<<< HEAD
 Start the development server:
 npm run dev
 Frontend:
@@ -228,6 +229,93 @@ Current verification:
 2 skipped
 The skipped tests are controlled live AWS Bedrock tests and are intentionally gated to prevent accidental AWS usage during normal offline testing.
 Frontend
+=======
+cd ..
+```
+
+---
+
+## Environment Variables
+
+Configured via environment variables:
+
+| Variable | Default Value | Description |
+| :--- | :--- | :--- |
+| `IAMFIXER_AI_PROVIDER` | `auto` | RCA provider mode: `auto`, `bedrock`, or `baseline`. |
+| `DATABASE_URL` | `sqlite:///./iamfixer.db` | SQLAlchemy database connection URI. |
+| `AWS_REGION` | `us-east-1` | AWS Region for Bedrock client. |
+| `BEDROCK_MODEL_ID` | *(Empty)* | Amazon Bedrock model ID (e.g. `anthropic.claude-3-5-sonnet-20240620-v1:0`). |
+| `AWS_ACCESS_KEY_ID` | *(Empty)* | AWS Access Key ID (**Server-side / Backend only**). |
+| `AWS_SECRET_ACCESS_KEY` | *(Empty)* | AWS Secret Access Key (**Server-side / Backend only**). |
+| `AWS_SESSION_TOKEN` | *(Empty)* | AWS Session Token (**Server-side / Backend only**). |
+| `VITE_API_BASE_URL` | `http://127.0.0.1:8000` | Local dev API base URL (uses same-origin relative base URL in production). |
+
+---
+
+## Vercel Deployment (Unified Single-Domain Architecture)
+
+IAMFixer deploys as **ONE Vercel project** on **ONE public domain**:
+
+- **Frontend**: React/Vite SPA served at `/` (`/dashboard`, `/simulation`, `/incidents/:id`).
+- **Backend**: FastAPI application served via Vercel Python runtime (`@vercel/python`) via entrypoint `api/index.py`.
+- **Public Origin**: Single domain (e.g. `https://iamfixer.vercel.app`).
+- **API Routes**: Frontend communicates with `/api/...` on the same origin:
+  - `GET /api/health` → FastAPI health check status
+  - `GET /api/incidents` → List stored incidents
+  - `POST /api/incidents` → Create new incident
+  - `GET /api/incidents/:id/telemetry` → Fetch telemetry event stream
+  - `POST /api/incidents/:id/investigate` → Trigger RCA engine
+  - `POST /api/simulation/:scenario` → Execute simulation lab scenario
+
+> [!IMPORTANT]
+> **Security Governance & AWS Credentials**:
+> AWS credentials (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`) are restricted strictly to backend environment variables on Vercel. **No AWS secrets or keys are exposed to Vite frontend environment variables or client-side JavaScript bundles.**
+
+> [!WARNING]
+> **SQLite Serverless Persistence Limitation**:
+> SQLite local filesystem storage (`iamfixer.db`) is **ephemeral** within Vercel's serverless environment. Database writes persist during active warm executions and will reset on cold starts. For durable production persistence, a managed SQL database (such as Supabase, Vercel Postgres, or AWS RDS) can be configured via the `DATABASE_URL` environment variable.
+
+---
+
+## Running the Application
+
+### Local Development Setup
+
+#### Start FastAPI Backend
+```bash
+python -m uvicorn backend.app.main:app --reload --host 127.0.0.1 --port 8000
+```
+- API Base: `http://127.0.0.1:8000`
+- OpenAPI Docs: `http://127.0.0.1:8000/docs`
+- Health Endpoint: `http://127.0.0.1:8000/health`
+
+#### Start React Frontend
+In a separate terminal:
+```bash
+cd frontend
+npm run dev
+```
+- Web Application UI: `http://localhost:5173` (or `http://127.0.0.1:5173`)
+
+---
+
+## Testing & Verification
+
+### Run Backend Pytest Suite
+```bash
+python -m pytest backend/ -v
+```
+*All 44 automated backend tests execute against an isolated in-memory SQLite database (`sqlite:///:memory:`).*
+
+### Run Dependency Check
+```bash
+python -m pip check
+```
+
+### Build Frontend Bundle
+```bash
+cd frontend
+>>>>>>> 91e6e8f (feat: finalize full-stack IAMFixer deployment)
 npm run build
 The production build has been verified with:
 0 TypeScript errors

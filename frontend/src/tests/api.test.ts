@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { api, ApiError } from '../services/api';
+import { api } from '../services/api';
 
 describe('API Client Service', () => {
   beforeEach(() => {
@@ -15,7 +15,7 @@ describe('API Client Service', () => {
 
     const result = await api.getHealth();
     expect(result).toEqual(mockHealth);
-    expect(global.fetch).toHaveBeenCalledWith('http://localhost:8000/health', expect.any(Object));
+    expect(global.fetch).toHaveBeenCalledWith('http://127.0.0.1:8000/api/health', expect.any(Object));
   });
 
   it('should construct correct query params when listing incidents with filters', async () => {
@@ -42,7 +42,7 @@ describe('API Client Service', () => {
     const result = await api.listIncidents({ severity: 'CRITICAL', status: 'OPEN' });
     expect(result).toEqual(mockIncidents);
     expect(global.fetch).toHaveBeenCalledWith(
-      'http://localhost:8000/api/incidents?severity=CRITICAL&status=OPEN',
+      'http://127.0.0.1:8000/api/incidents?severity=CRITICAL&status=OPEN',
       expect.any(Object)
     );
   });

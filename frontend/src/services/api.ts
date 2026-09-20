@@ -8,7 +8,16 @@ import {
   TelemetryListResponse,
 } from '../types/api';
 
-const BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/\/+$/, '');
+const getApiBaseUrl = (): string => {
+  const envUrl = import.meta.env.VITE_API_BASE_URL;
+  if (envUrl !== undefined && envUrl !== null && envUrl !== '') {
+    return envUrl.replace(/\/+$/, '');
+  }
+  // In development, default to local backend. In production, use same-origin relative base url.
+  return import.meta.env.DEV ? 'http://127.0.0.1:8000' : '';
+};
+
+const BASE_URL = getApiBaseUrl();
 
 export class ApiError extends Error {
   status?: number;
@@ -62,14 +71,14 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
       throw err;
     }
     throw new ApiError(
-      'Unable to connect to IAMFixer backend. Please ensure backend is running at ' + BASE_URL
+      'Unable to connect to IAMFixer backend. Please ensure backend is accessible at ' + (BASE_URL || '/api')
     );
   }
 }
 
 export const api = {
   getHealth: (): Promise<HealthStatus> => {
-    return request<HealthStatus>('/health');
+    return request<HealthStatus>('/api/health');
   },
 
   listIncidents: (filters?: IncidentFilters): Promise<Incident[]> => {

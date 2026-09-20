@@ -14,6 +14,7 @@ router = APIRouter(tags=["Health"])
     summary="Health Check",
     description="Check backend operational status, database connectivity, and service version.",
 )
+@router.get("/api/health", include_in_schema=False)
 async def health_check(db: Session = Depends(get_db)):
     bedrock_status = "configured" if bool(settings.bedrock_model_id) else "not_configured"
     try:
