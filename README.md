@@ -1,152 +1,250 @@
 # IAMFixer
 
-**AI-powered incident investigation and root-cause analysis for modern applications.**
+**Evidence-backed incident investigation and root-cause analysis for modern applications.**
 
-IAMFixer is an incident investigation platform that combines application telemetry, evidence traceability, deterministic analysis, and **AWS Bedrock-powered RCA** to help engineers understand production incidents and generate evidence-backed remediation recommendations.
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-iamfixer.vercel.app-0A66C2?style=for-the-badge)](https://iamfixer.vercel.app) [![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/) [![FastAPI](https://img.shields.io/badge/FastAPI-API-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/) [![React](https://img.shields.io/badge/React-TypeScript-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/) [![AWS Bedrock](https://img.shields.io/badge/Amazon-Bedrock-232F3E?style=for-the-badge&logo=amazonaws&logoColor=white)](https://aws.amazon.com/bedrock/)
 
-> **Recommendation only. Human approval required.**
-> IAMFixer does not automatically modify infrastructure or execute remediation actions.
+IAMFixer helps engineers investigate application incidents by bringing incident context, telemetry, and supporting evidence into one workflow. It combines **Amazon Bedrock-powered analysis** with a deterministic rule-based fallback, structured result validation, and evidence traceability so that diagnoses can be inspected instead of blindly trusted.
 
----
+> **Human-in-the-loop by design:** IAMFixer recommends remediation. It does not automatically modify infrastructure, restart services, change deployments, or execute remediation commands.
 
-## What IAMFixer Does
+## Contents
 
-IAMFixer follows an incident from detection to investigation:
+- [Why IAMFixer?](#why-iamfixer)
+- [Features](#features)
+- [Investigation workflow](#investigation-workflow)
+- [Architecture](#architecture)
+- [Technology stack](#technology-stack)
+- [Run locally](#run-locally)
+- [Configuration](#configuration)
+- [Tests and build](#tests-and-build)
+- [Deployment notes](#deployment-notes)
+- [Security](#security)
+- [Project structure](#project-structure)
+
+## Why IAMFixer?
+
+Production incidents rarely announce their root cause politely. Engineers often need to correlate service symptoms, telemetry, and deployment context before they can decide what to do next. IAMFixer provides a focused investigation workflow that produces a structured diagnosis, confidence information, evidence references, and remediation recommendations for human review.
+
+## Features
+
+- **AI-assisted root-cause analysis:** Uses Amazon Bedrock to analyze incident context and available telemetry.
+- **Deterministic fallback:** Offers a rule-based RCA provider when configured to fall back from Bedrock or when running without live model calls.
+- **Provider modes:** `bedrock` for Bedrock, `baseline` for deterministic analysis, and `auto` for Bedrock with baseline fallback.
+- **Evidence traceability:** RCA evidence references link findings back to relevant telemetry events in the investigation UI.
+- **Incident simulation lab:** Reproducible scenarios help demonstrate and test investigation flows without causing a real outage.
+- **Structured validation:** Pydantic schemas and evidence checks validate model output before it is shown as an investigation result.
+- **Human-reviewed remediation:** Recommendations are presented for review; the system does not execute infrastructure changes automatically.
+- **Full-stack interface:** A React and TypeScript UI with an operations dashboard, incident investigation view, and simulation lab.
+
+### Included simulation scenarios
+
+- `BAD_DEPLOYMENT`
+- `DATABASE_CONNECTION_EXHAUSTION`
+- `MEMORY_LEAK`
+- `DEPENDENCY_FAILURE`
+- `TRAFFIC_SPIKE`
+
+## Investigation workflow
 
 ```text
-Incident
-   ↓
-Telemetry Collection
-   ↓
-Evidence Extraction
-   ↓
-AI / Deterministic RCA
-   ↓
-Root Cause + Confidence
-   ↓
-Evidence Traceability
-   ↓
-Remediation Recommendation
-   ↓
-Human Approval
-The platform is designed around the idea that an AI-generated diagnosis should be traceable to actual incident evidence, rather than being an unexplained LLM response.
-Core Features
-AI-Powered Root Cause Analysis
-Uses Amazon Bedrock to analyze:
-- Incident context
-- Application telemetry
-- Extracted evidence
-- Service information
-- Failure patterns
-The Bedrock response is validated against a structured RCA schema before being presented to the user.
-Multi-Provider RCA
-IAMFixer supports three provider modes:
-Mode	Behavior
-bedrock	Uses AWS Bedrock directly
-baseline	Uses deterministic rule-based RCA
-auto	Uses Bedrock with automatic baseline fallback
+Incident context + telemetry
+            |
+            v
+     Evidence extraction
+            |
+            v
+       RCA provider
+       /          \
+  Bedrock       Baseline rules
+       \          /
+        v        v
+   Structured RCA result
+            |
+            v
+ Schema + evidence validation
+            |
+            v
+ Root cause, confidence, evidence
+            |
+            v
+ Remediation recommendation
+            |
+            v
+       Human review
+```
 
+When `IAMFIXER_AI_PROVIDER=auto`, the backend can fall back to deterministic RCA if the Bedrock call fails or its output cannot be used. Actual live Bedrock execution requires valid AWS credentials, permissions, a supported model ID, and regional model access.
 
-If Bedrock becomes unavailable because of authentication, throttling, network failure, missing configuration, or malformed output, the system can fall back to the deterministic RCA provider.
-AWS Bedrock
-     │
-     ├── Success → Bedrock RCA
-     │
-     └── Failure → Baseline RCA
-The UI identifies this state as:
-AWS Bedrock → Baseline Fallback
-Evidence Traceability
-RCA results contain references to the telemetry evidence supporting the diagnosis.
-Selecting an evidence item in the investigation view:
-Evidence
-   ↓
-Telemetry Tab
-   ↓
-Target Event
-   ↓
-Automatic Scroll
-   ↓
-Visual Highlight
-This allows engineers to inspect the underlying event instead of blindly trusting the generated explanation.
-Simulation Lab
-IAMFixer includes controlled incident scenarios for reproducible testing and demonstrations.
-Current scenarios include:
-- BAD_DEPLOYMENT
-- DATABASE_CONNECTION_EXHAUSTION
-- MEMORY_LEAK
-- DEPENDENCY_FAILURE
-- TRAFFIC_SPIKE
-The Simulation Lab allows the investigation pipeline to be demonstrated without requiring an actual production outage.
-Safety Governance
-IAMFixer is deliberately recommendation-only.
-The system does not automatically:
-- Modify AWS infrastructure
-- Restart services
-- Change deployments
-- Alter production configuration
-- Execute remediation commands
-Investigation results can contain remediation recommendations, but high- and medium-risk recommendations require human approval.
-AI Diagnosis
-     ↓
-Recommendation
-     ↓
-Human Review
-     ↓
-Human Decision
-Architecture
-┌─────────────────────────────────────────────┐
-│                  Frontend                   │
-│        React + TypeScript + Vite            │
-│                                             │
-│  Landing │ Dashboard │ Investigation │ Lab  │
-└──────────────────────┬──────────────────────┘
-                       │
-                       │ REST API
-                       ▼
-┌─────────────────────────────────────────────┐
-│                   Backend                   │
-│              FastAPI + Python               │
-│                                             │
-│  Incidents │ Telemetry │ Investigation      │
-│  RCA Factory │ Health │ Simulation          │
-└──────────────┬──────────────────┬───────────┘
-               │                  │
-               ▼                  ▼
-        ┌─────────────┐    ┌───────────────┐
-        │   SQLite    │    │  RCA Engine   │
-        │ SQLAlchemy  │    │               │
-        └─────────────┘    │ AWS Bedrock   │
-                           │      ↓        │
-                           │ Baseline RCA  │
-                           └───────────────┘
-Technology Stack
-Frontend
-- React
-- TypeScript
-- Vite
-- Tailwind CSS
-- Motion
-- Lucide React
-Backend
-- Python
-- FastAPI
-- Pydantic
-- Uvicorn
-- SQLAlchemy
-- SQLite
-- Pytest
-AI / Cloud
-- Amazon Bedrock
-- AWS SDK for Python (boto3)
-Engineering
-- REST APIs
-- Structured RCA schemas
-- Automated testing
-- Evidence traceability
-- Human-in-the-loop safety controls
-Project Structure
+## Architecture
+
+```text
+React + TypeScript + Vite
+            |
+        REST API
+            |
+            v
+      FastAPI backend
+       /           \
+      v             v
+ SQLAlchemy       RCA provider factory
+      |             /           \
+   SQLite      Amazon Bedrock   Baseline RCA
+```
+
+The frontend communicates with the FastAPI API. The backend manages incident and telemetry workflows, persistence, simulation, and RCA provider selection. In the documented Vercel deployment, the frontend and API are served from one origin.
+
+## Technology stack
+
+| Layer | Technologies |
+|---|---|
+| Frontend | React, TypeScript, Vite, Tailwind CSS, Motion, Lucide React |
+| Backend | Python, FastAPI, Pydantic, Uvicorn |
+| Persistence | SQLAlchemy 2.x, SQLite |
+| AI | Amazon Bedrock Converse API, boto3 |
+| Testing | pytest |
+| Deployment | Vercel |
+
+## Run locally
+
+### Prerequisites
+
+- Python 3.11 or newer
+- Node.js 18 or newer and npm
+- Git
+- AWS credentials and Bedrock model access only if you want to test live Bedrock inference
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/AkashS-0107/IAMFixer.git
+cd IAMFixer
+```
+
+### 2. Set up the backend
+
+```bash
+cd backend
+python -m venv .venv
+```
+
+Activate the environment:
+
+**Windows PowerShell**
+
+```powershell
+.venv\Scripts\Activate.ps1
+```
+
+**macOS / Linux**
+
+```bash
+source .venv/bin/activate
+```
+
+Install dependencies and create your local environment file from the example:
+
+```bash
+pip install -r requirements.txt
+```
+
+Copy `backend/.env.example` to `backend/.env` and set the values you need. See [Configuration](#configuration) below. For a baseline-only run, set `IAMFIXER_AI_PROVIDER=baseline` so live Bedrock credentials are not needed for RCA.
+
+Start the API from the `backend` directory:
+
+```bash
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+Useful local endpoints:
+
+- API: <http://127.0.0.1:8000>
+- OpenAPI docs: <http://127.0.0.1:8000/docs>
+- Health check: <http://127.0.0.1:8000/health>
+
+### 3. Set up the frontend
+
+Open a second terminal at the repository root:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open <http://localhost:5173>. If your local API URL differs, configure `VITE_API_BASE_URL` as described below.
+
+## Configuration
+
+The backend reads its configuration from environment variables. The frontend's `VITE_` variables are bundled into client-side code, so **never put secrets in them**.
+
+| Variable | Purpose |
+|---|---|
+| `IAMFIXER_AI_PROVIDER` | RCA provider: `auto`, `bedrock`, or `baseline`. |
+| `DATABASE_URL` | SQLAlchemy database URL. Local default: `sqlite:///./iamfixer.db`. |
+| `AWS_REGION` | AWS Region used by the Bedrock client. Example: `us-east-1`. |
+| `BEDROCK_MODEL_ID` | Model ID available to your AWS account in the selected Region. |
+| `AWS_ACCESS_KEY_ID` | Optional backend-only AWS access key; prefer an AWS-supported role or credential provider where available. |
+| `AWS_SECRET_ACCESS_KEY` | Optional backend-only AWS secret key. Never commit it. |
+| `AWS_SESSION_TOKEN` | Optional backend-only session token for temporary credentials. |
+| `VITE_API_BASE_URL` | Frontend API base URL for local development; commonly `http://127.0.0.1:8000`. |
+
+Use the repository's `backend/.env.example` as the source of truth for the available configuration fields. Do not copy real credentials into documentation, screenshots, issues, or commits.
+
+## Tests and build
+
+### Backend tests
+
+Run from the repository root:
+
+```bash
+python -m pytest backend/ -v
+```
+
+The test suite is designed to exercise backend behavior without requiring paid Bedrock calls for normal tests. Live-provider tests, if enabled, may require AWS credentials and can incur usage charges.
+
+### Frontend production build
+
+```bash
+cd frontend
+npm install
+npm run build
+```
+
+### Dependency check
+
+With the backend virtual environment activated:
+
+```bash
+python -m pip check
+```
+
+Test counts and build results can change as the project evolves; run the commands above to verify the current checkout rather than relying on a static number in this README.
+
+## Deployment notes
+
+The project includes a Vercel-oriented, single-origin deployment setup. The frontend is served as a Vite-built SPA and the backend is exposed through the repository's Vercel Python entry point and API routing configuration. Check the deployment configuration in the repository before adapting it to another host.
+
+**SQLite on serverless infrastructure:** A local SQLite file may not provide durable persistence across serverless instances or cold starts. For a production deployment requiring durable shared data, configure `DATABASE_URL` to use an appropriately managed database and validate migrations, connection handling, and access controls for that environment.
+
+Live Bedrock inference also requires the deployment's backend runtime to have appropriate AWS credentials, IAM permissions, regional model access, and a configured `BEDROCK_MODEL_ID`.
+
+## Security
+
+IAMFixer is designed to keep incident analysis inspectable and remediation under human control. When deploying or contributing:
+
+- Keep `.env` files, access keys, session tokens, and other secrets out of Git.
+- Store AWS credentials only in backend environment configuration or a suitable AWS identity mechanism. Never expose them through `VITE_` variables.
+- Apply least-privilege IAM permissions for the Bedrock operations the application needs.
+- Treat logs, telemetry, and incident payloads as potentially sensitive operational data.
+- Validate AI output and evidence references before using them in an investigation result.
+- Review remediation suggestions before taking action; IAMFixer does not automatically execute them.
+- Before committing, inspect `git status` and the staged diff for secrets or local database files.
+
+## Project structure
+
+```text
 IAMFixer/
-│
 ├── backend/
 │   ├── app/
 │   │   ├── api/
@@ -154,17 +252,10 @@ IAMFixer/
 │   │   ├── models/
 │   │   ├── repositories/
 │   │   ├── schemas/
-│   │   └── services/
-│   │       └── rca/
-│   │           ├── baseline.py
-│   │           ├── bedrock_client.py
-│   │           ├── bedrock_provider.py
-│   │           └── factory.py
-│   │
+│   │   └── services/rca/
 │   ├── tests/
 │   ├── .env.example
 │   └── requirements.txt
-│
 ├── frontend/
 │   ├── src/
 │   │   ├── components/
@@ -172,265 +263,34 @@ IAMFixer/
 │   │   ├── services/
 │   │   ├── types/
 │   │   └── utils/
-│   ├── package.json
-│   └── vite.config.ts
-│
+│   └── package.json
+├── api/
+│   └── index.py
 ├── .gitignore
 └── README.md
-Getting Started
-Prerequisites
-Install:
-- Python 3.11+
-- Node.js 18+
-- npm
-- AWS account with appropriate Amazon Bedrock access for live AI testing
-Backend Setup
-cd backend
-Create a virtual environment:
-python -m venv .venv
-Activate it on Windows:
-.venv\Scripts\activate
-Install dependencies:
-pip install -r requirements.txt
-Create:
-backend/.env
-Example:
-IAMFIXER_AI_PROVIDER=auto
-
-AWS_REGION=us-east-1
-BEDROCK_MODEL_ID=your-bedrock-model-id
-
-AWS_ACCESS_KEY_ID=your-access-key
-AWS_SECRET_ACCESS_KEY=your-secret-key
-# AWS_SESSION_TOKEN=your-session-token
-Never commit .env or AWS credentials to GitHub.
-Start the backend:
-uvicorn app.main:app --reload
-Backend:
-http://127.0.0.1:8000
-Health endpoint:
-http://127.0.0.1:8000/health
-Frontend Setup
-Open another terminal:
-cd frontend
-Install dependencies:
-npm install
-<<<<<<< HEAD
-Start the development server:
-npm run dev
-Frontend:
-http://localhost:5173
-Testing
-Backend
-From the backend directory:
-python -m pytest -v
-Current verification:
-45 passed
-2 skipped
-The skipped tests are controlled live AWS Bedrock tests and are intentionally gated to prevent accidental AWS usage during normal offline testing.
-Frontend
-=======
-cd ..
 ```
+
+## Demo walkthrough
+
+For a concise demo, use this sequence:
+
+1. Open the landing page and navigate to the operations dashboard.
+2. Select an incident and inspect its telemetry.
+3. Open an evidence reference and follow it to the corresponding event.
+4. Run an investigation and review the root-cause result, confidence, and supporting evidence.
+5. Inspect the remediation recommendation without executing it automatically.
+6. Use the Simulation Lab to demonstrate a reproducible failure scenario.
+
+## Project principle
+
+> **AI should help engineers investigate incidents, not silently take control of production systems.**
+
+IAMFixer combines AI-assisted reasoning, deterministic fallback analysis, structured validation, evidence traceability, controlled simulations, and explicit human oversight to make incident investigation easier to inspect and explain.
+
+## License
+
+This repository includes an MIT License. See the [`LICENSE`](LICENSE) file for the full terms.
 
 ---
 
-## Environment Variables
-
-Configured via environment variables:
-
-| Variable | Default Value | Description |
-| :--- | :--- | :--- |
-| `IAMFIXER_AI_PROVIDER` | `auto` | RCA provider mode: `auto`, `bedrock`, or `baseline`. |
-| `DATABASE_URL` | `sqlite:///./iamfixer.db` | SQLAlchemy database connection URI. |
-| `AWS_REGION` | `us-east-1` | AWS Region for Bedrock client. |
-| `BEDROCK_MODEL_ID` | *(Empty)* | Amazon Bedrock model ID (e.g. `anthropic.claude-3-5-sonnet-20240620-v1:0`). |
-| `AWS_ACCESS_KEY_ID` | *(Empty)* | AWS Access Key ID (**Server-side / Backend only**). |
-| `AWS_SECRET_ACCESS_KEY` | *(Empty)* | AWS Secret Access Key (**Server-side / Backend only**). |
-| `AWS_SESSION_TOKEN` | *(Empty)* | AWS Session Token (**Server-side / Backend only**). |
-| `VITE_API_BASE_URL` | `http://127.0.0.1:8000` | Local dev API base URL (uses same-origin relative base URL in production). |
-
----
-
-## Vercel Deployment (Unified Single-Domain Architecture)
-
-IAMFixer deploys as **ONE Vercel project** on **ONE public domain**:
-
-- **Frontend**: React/Vite SPA served at `/` (`/dashboard`, `/simulation`, `/incidents/:id`).
-- **Backend**: FastAPI application served via Vercel Python runtime (`@vercel/python`) via entrypoint `api/index.py`.
-- **Public Origin**: Single domain (e.g. `https://iamfixer.vercel.app`).
-- **API Routes**: Frontend communicates with `/api/...` on the same origin:
-  - `GET /api/health` → FastAPI health check status
-  - `GET /api/incidents` → List stored incidents
-  - `POST /api/incidents` → Create new incident
-  - `GET /api/incidents/:id/telemetry` → Fetch telemetry event stream
-  - `POST /api/incidents/:id/investigate` → Trigger RCA engine
-  - `POST /api/simulation/:scenario` → Execute simulation lab scenario
-
-> [!IMPORTANT]
-> **Security Governance & AWS Credentials**:
-> AWS credentials (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`) are restricted strictly to backend environment variables on Vercel. **No AWS secrets or keys are exposed to Vite frontend environment variables or client-side JavaScript bundles.**
-
-> [!WARNING]
-> **SQLite Serverless Persistence Limitation**:
-> SQLite local filesystem storage (`iamfixer.db`) is **ephemeral** within Vercel's serverless environment. Database writes persist during active warm executions and will reset on cold starts. For durable production persistence, a managed SQL database (such as Supabase, Vercel Postgres, or AWS RDS) can be configured via the `DATABASE_URL` environment variable.
-
----
-
-## Running the Application
-
-### Local Development Setup
-
-#### Start FastAPI Backend
-```bash
-python -m uvicorn backend.app.main:app --reload --host 127.0.0.1 --port 8000
-```
-- API Base: `http://127.0.0.1:8000`
-- OpenAPI Docs: `http://127.0.0.1:8000/docs`
-- Health Endpoint: `http://127.0.0.1:8000/health`
-
-#### Start React Frontend
-In a separate terminal:
-```bash
-cd frontend
-npm run dev
-```
-- Web Application UI: `http://localhost:5173` (or `http://127.0.0.1:5173`)
-
----
-
-## Testing & Verification
-
-### Run Backend Pytest Suite
-```bash
-python -m pytest backend/ -v
-```
-*All 44 automated backend tests execute against an isolated in-memory SQLite database (`sqlite:///:memory:`).*
-
-### Run Dependency Check
-```bash
-python -m pip check
-```
-
-### Build Frontend Bundle
-```bash
-cd frontend
->>>>>>> 91e6e8f (feat: finalize full-stack IAMFixer deployment)
-npm run build
-The production build has been verified with:
-0 TypeScript errors
-0 Vite bundler errors
-AWS Bedrock
-IAMFixer uses the Bedrock Converse API through boto3.
-The AI investigation flow is:
-Incident Context
-       +
-Telemetry
-       +
-Evidence
-       ↓
-Prompt Builder
-       ↓
-Amazon Bedrock
-       ↓
-Structured Response
-       ↓
-Pydantic Validation
-       ↓
-Evidence Validation
-       ↓
-RCA Result
-The application validates:
-- RCA response structure
-- Confidence boundaries
-- Evidence references
-- Provider metadata
-- Recommendation safety requirements
-If Bedrock cannot produce a valid result in auto mode, IAMFixer falls back to deterministic RCA.
-Security
-IAMFixer follows several security principles:
-- No credentials hardcoded in source code
-- .env excluded from Git
-- AWS credential files excluded from Git
-- Secrets are not returned through API responses
-- Credentials are not written to application logs
-- Bedrock output is schema validated
-- Untrusted incident data is treated as data rather than instructions
-- No automatic infrastructure mutation
-Before pushing the project to GitHub, verify:
-git status
-and ensure no .env files or credential material are staged.
-UI & UX
-The frontend uses a dark technical operations-console visual system with:
-- Responsive layouts
-- Motion-based transitions
-- Scroll-reveal animations
-- Reduced-motion support
-- Keyboard accessibility
-- Evidence highlighting
-- Animated RCA confidence visualization
-- Operational health indicators
-- Severity-aware status presentation
-- Mobile, tablet, and desktop support
-The interface is organized around four primary areas:
-/
-├── Landing Page
-│
-├── /dashboard
-│   └── Operations Console
-│
-├── /incidents/:id
-│   └── Incident Investigation
-│
-└── /simulation
-    └── Simulation Lab
-Current Validation
-IAMFixer has been validated across the major application layers:
-Area	Status
-Frontend build	Passed
-TypeScript compilation	Passed
-Backend tests	45 passed
-RCA provider tests	Passed
-Bedrock schema validation	Passed
-Baseline fallback	Passed
-Evidence traceability	Passed
-SQLite persistence	Passed
-Simulation scenarios	Passed
-Health endpoint	Passed
-Secret protection	Verified
-Safety governance	Verified
-Responsive UI	Verified
-Reduced-motion support	Verified
-
-
-Demo Workflow
-The recommended demonstration flow is:
-Landing Page
-     ↓
-Operations Console
-     ↓
-Select Incident
-     ↓
-Telemetry
-     ↓
-Evidence
-     ↓
-AWS Bedrock RCA
-     ↓
-Root Cause + Confidence
-     ↓
-Evidence Traceability
-     ↓
-Recommendation
-     ↓
-Human Approval
-     ↓
-Simulation Lab
-Project Goal
-IAMFixer is designed around a simple principle:
-AI should help engineers investigate incidents, not silently take control of production systems.
-
-The project combines AI-assisted reasoning with deterministic fallbacks, evidence traceability, structured validation, persistent investigation data, controlled simulations, and explicit human oversight.
-License
-Add the project's intended license here before publishing if required by the hackathon or repository policy.
-Built with React, FastAPI, Python, SQLite, and Amazon Bedrock.
+Built with Python, FastAPI, React, TypeScript, SQLite, and Amazon Bedrock.
